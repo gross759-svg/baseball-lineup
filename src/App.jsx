@@ -17,8 +17,15 @@ export default function App() {
   const [teamLoading, setTeamLoading] = useState(true)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
+    supabase.auth.getUser().then(({ error }) => {
+      if (error) {
+        supabase.auth.signOut()
+        setSession(null)
+      } else {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          setSession(session)
+        })
+      }
     })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
