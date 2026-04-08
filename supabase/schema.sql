@@ -108,6 +108,10 @@ create policy "Members can read their team"
   on teams for select
   using (is_team_member(id));
 
+create policy "Authenticated users can look up teams"
+  on teams for select
+  using (auth.uid() is not null);
+
 create policy "Authenticated users can create teams"
   on teams for insert
   with check (auth.uid() is not null);
