@@ -73,13 +73,15 @@ export default function TeamSetup({ onTeamJoined }) {
 
         <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
           <button
-            className={`btn btn--full ${tab === 'create' ? 'btn--primary' : 'btn--secondary'}`}
+            className={`btn ${tab === 'create' ? 'btn--primary' : 'btn--secondary'}`}
+            style={{ flex: 1 }}
             onClick={() => setTab('create')}
           >
             Create team
           </button>
           <button
-            className={`btn btn--full ${tab === 'join' ? 'btn--primary' : 'btn--secondary'}`}
+            className={`btn ${tab === 'join' ? 'btn--primary' : 'btn--secondary'}`}
+            style={{ flex: 1 }}
             onClick={() => setTab('join')}
           >
             Join team
