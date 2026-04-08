@@ -4,7 +4,7 @@ const ALL_POSITIONS = ['P', 'C', '1B', '2B', '3B', 'SS', 'OF']
 const INFIELD = ['P', 'C', '1B', '2B', '3B', 'SS']
 
 function posClass(pos) {
-  return INFIELD.includes(pos) ? 'pos-chip--if' : 'pos-chip--of'
+  return INFIELD.includes(pos) ? 'position-chip--if' : 'position-chip--of'
 }
 
 export default function PlayerForm({ initial = {}, onSave, onCancel, saving }) {
@@ -102,10 +102,10 @@ export default function PlayerForm({ initial = {}, onSave, onCancel, saving }) {
       </div>
 
       <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-        <button type="button" className="btn btn--secondary btn--full" onClick={onCancel}>
+        <button type="button" className="btn btn--secondary" style={{ flex: 1 }} onClick={onCancel}>
           Cancel
         </button>
-        <button type="submit" className="btn btn--primary btn--full" disabled={saving}>
+        <button type="submit" className="btn btn--primary" style={{ flex: 1 }} disabled={saving}>
           {saving ? 'Saving…' : 'Save player'}
         </button>
       </div>
