@@ -51,8 +51,8 @@ export default function TeamSetup({ onTeamJoined }) {
 
       const { error: mErr } = await supabase
         .from('team_members')
-        .upsert({ team_id: team.id, user_id: user.id, role: 'coach' }, { onConflict: 'team_id,user_id' })
-      if (mErr) throw mErr
+        .insert({ team_id: team.id, user_id: user.id, role: 'coach' })
+      if (mErr && mErr.code !== '23505') throw mErr // ignore if already a member
 
       onTeamJoined(team)
     } catch (err) {
