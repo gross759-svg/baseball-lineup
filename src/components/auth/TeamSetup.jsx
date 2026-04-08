@@ -62,6 +62,10 @@ export default function TeamSetup({ onTeamJoined }) {
     }
   }
 
+  async function handleSignOut() {
+    await supabase.auth.signOut()
+  }
+
   return (
     <div className="auth-page">
       <div className="auth-card">
@@ -88,7 +92,7 @@ export default function TeamSetup({ onTeamJoined }) {
           </button>
         </div>
 
-        {error && <div className="alert alert--error">{error}</div>}
+        {error && <div className="alert alert--error mb-12">{error}</div>}
 
         {tab === 'create' ? (
           <form onSubmit={handleCreate}>
@@ -129,6 +133,13 @@ export default function TeamSetup({ onTeamJoined }) {
             </button>
           </form>
         )}
+        <button
+          className="btn btn--secondary btn--full"
+          style={{ marginTop: 16, fontSize: '0.8125rem' }}
+          onClick={handleSignOut}
+        >
+          Sign out
+        </button>
       </div>
     </div>
   )
