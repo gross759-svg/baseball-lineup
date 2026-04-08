@@ -9,6 +9,7 @@ import RosterPage from './pages/RosterPage.jsx'
 import GamesPage from './pages/GamesPage.jsx'
 import GameDetailPage from './pages/GameDetailPage.jsx'
 import StatsPage from './pages/StatsPage.jsx'
+import AuthCallbackPage from './pages/AuthCallbackPage.jsx'
 
 export default function App() {
   const [session, setSession] = useState(undefined) // undefined = loading
@@ -62,6 +63,7 @@ export default function App() {
         <BrowserRouter>
           {!session ? (
             <Routes>
+              <Route path="/auth/callback" element={<AuthCallbackPage />} />
               <Route path="*" element={<AuthPage />} />
             </Routes>
           ) : teamLoading ? (
