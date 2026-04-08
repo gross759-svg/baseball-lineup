@@ -5,43 +5,74 @@ import { computeWarnings } from '../../lib/warnings.js'
 import { useUpsertAssignment, useAcceptSuggestion } from '../../hooks/useLineup.js'
 import { pitchTotals } from '../../hooks/usePitching.js'
 
+const POSITION_SLOTS = { P: 1, C: 1, '1B': 1, '2B': 1, '3B': 1, SS: 1, OF: 3 }
+
 export default function LineupGrid({
   game,
-  activePlayers,  // ordered by batting_order
+  activePlayers,
   assignments = [],
   pitchLog = [],
+  onEditOrder,
+  onAddInning,
 }) {
   const [suggestInning, setSuggestInning] = useState(null)
-  const [selectedCell, setSelectedCell] = useState(null) // { playerId, inning }
+  const [selectedCell, setSelectedCell] = useState(null)
+  const [pcAlert, setPcAlert] = useState(null) // inning number needing P+C
   const upsert = useUpsertAssignment(game.id)
   const acceptSuggestion = useAcceptSuggestion(game.id)
 
   const innings = game.innings
   const inningNums = Array.from({ length: innings }, (_, i) => i + 1)
 
-  // Lookup helpers
   function getAssignment(playerId, inning) {
     return assignments.find(a => a.player_id === playerId && a.inning === inning)
   }
 
-  // Positions already taken in an inning (excluding a specific player)
   function takenInInning(inning, excludePlayerId) {
     return assignments
       .filter(a => a.inning === inning && a.player_id !== excludePlayerId)
       .map(a => a.position)
   }
 
-  // Warnings
-  const { infieldWarnings, benchWarnings } = computeWarnings(activePlayers, assignments, innings)
+  // Missing field positions for an inning (from the standard 9-slot lineup)
+  function getMissingForInning(inning) {
+    const filled = assignments.filter(a => a.inning === inning)
+    const counts = {}
+    for (const a of filled) counts[a.position] = (counts[a.position] || 0) + 1
+    const missing = []
+    for (const [pos, needed] of Object.entries(POSITION_SLOTS)) {
+      const shortage = needed - (counts[pos] || 0)
+      if (shortage > 0) missing.push(shortage > 1 ? `${shortage}×${pos}` : pos)
+    }
+    return missing
+  }
 
-  // Pitch totals
+  const { infieldWarnings, benchWarnings } = computeWarnings(activePlayers, assignments, innings)
   const totals = pitchTotals(pitchLog)
 
   function handleAssign(playerId, inning, position) {
-    upsert.mutate({ playerId, inning, position })
+    upsert.mutate({ playerId, inning, position }, {
+      onSuccess: () => {
+        // Auto-trigger suggestion after P or C is assigned
+        if ((position === 'P' || position === 'C') && suggestInning === null) {
+          // Build optimistic inning state
+          const inningAssignments = [
+            ...assignments.filter(a => a.inning === inning && a.player_id !== playerId),
+            { player_id: playerId, inning, position },
+          ]
+          const hasP = inningAssignments.some(a => a.position === 'P')
+          const hasC = inningAssignments.some(a => a.position === 'C')
+          // Only auto-suggest when exactly P and C are set (inning just started)
+          if (hasP && hasC && inningAssignments.length === 2) {
+            setSuggestInning(inning)
+          }
+        }
+      },
+    })
   }
 
   function handleCellOpen(playerId, inning) {
+    setPcAlert(null)
     setSelectedCell({ playerId, inning })
   }
 
@@ -51,12 +82,21 @@ export default function LineupGrid({
     setSelectedCell(null)
   }
 
+  function handleSuggestInning(n) {
+    const inningAssignments = assignments.filter(a => a.inning === n)
+    const hasP = inningAssignments.some(a => a.position === 'P')
+    const hasC = inningAssignments.some(a => a.position === 'C')
+    if (!hasP || !hasC) {
+      setPcAlert(n)
+      return
+    }
+    setPcAlert(null)
+    setSuggestInning(n)
+  }
+
   function handleAcceptSuggestion(suggestions) {
     acceptSuggestion.mutate(
-      {
-        inning: suggestInning,
-        suggestions: suggestions.filter(s => s.position),
-      },
+      { inning: suggestInning, suggestions: suggestions.filter(s => s.position) },
       { onSuccess: () => setSuggestInning(null) }
     )
   }
@@ -73,9 +113,19 @@ export default function LineupGrid({
           <thead>
             <tr>
               <th className="col-name">Player</th>
-              {inningNums.map(n => (
-                <th key={n} className="col-inning">{n}</th>
-              ))}
+              {inningNums.map(n => {
+                const missing = getMissingForInning(n)
+                return (
+                  <th key={n} className="col-inning" style={{ verticalAlign: 'top', paddingTop: 6, paddingBottom: 4, height: 'auto', whiteSpace: 'normal' }}>
+                    <div>{n}</div>
+                    {missing.length > 0 ? (
+                      <div className="col-inning-missing">{missing.join(' ')}</div>
+                    ) : (
+                      <div className="col-inning-complete">✓</div>
+                    )}
+                  </th>
+                )
+              })}
             </tr>
           </thead>
           <tbody>
@@ -83,21 +133,15 @@ export default function LineupGrid({
               const warnIf = infieldWarnings.has(player.id)
               const benchWarnInnings = benchWarnings.get(player.id) ?? new Set()
               const pitchCount = totals[player.id] ?? 0
-
               return (
                 <tr key={player.id}>
-                  {/* Sticky player name */}
                   <td className="col-name">
                     <div className={`lineup-name-cell ${warnIf ? 'lineup-name-cell--warn-if' : ''}`}>
                       <span className="bat-num">{idx + 1}</span>
                       <span className="player-name-text">{player.name}</span>
-                      {pitchCount > 0 && (
-                        <span className="pitch-tally">{pitchCount}p</span>
-                      )}
+                      {pitchCount > 0 && <span className="pitch-tally">{pitchCount}p</span>}
                     </div>
                   </td>
-
-                  {/* Inning cells */}
                   {inningNums.map(inning => (
                     <LineupCell
                       key={inning}
@@ -133,6 +177,24 @@ export default function LineupGrid({
         </div>
       )}
 
+      {/* Action bar */}
+      <div style={{ display: 'flex', gap: 8, padding: '8px 16px' }}>
+        <button className="btn btn--outline btn--sm" onClick={onEditOrder} type="button">
+          Edit order
+        </button>
+        <button className="btn btn--outline btn--sm" onClick={onAddInning} type="button">
+          + Add inning
+        </button>
+      </div>
+
+      {/* P+C required alert */}
+      {pcAlert !== null && (
+        <div className="alert alert--warn" style={{ margin: '0 16px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>Assign a Pitcher and Catcher for Inning {pcAlert} first.</span>
+          <button type="button" onClick={() => setPcAlert(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', lineHeight: 1 }}>✕</button>
+        </div>
+      )}
+
       {/* Suggest bar */}
       {suggestInning === null && (
         <div className="suggest-bar">
@@ -143,7 +205,7 @@ export default function LineupGrid({
             <button
               key={n}
               className="btn btn--outline btn--sm"
-              onClick={() => setSuggestInning(n)}
+              onClick={() => handleSuggestInning(n)}
               type="button"
             >
               Inn {n}
@@ -152,7 +214,7 @@ export default function LineupGrid({
         </div>
       )}
 
-      {/* Position picker sheet (portal) */}
+      {/* Position picker sheet */}
       {selectedCell && (() => {
         const player = activePlayers.find(p => p.id === selectedCell.playerId)
         const asgn = getAssignment(selectedCell.playerId, selectedCell.inning)

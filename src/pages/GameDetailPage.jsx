@@ -22,6 +22,7 @@ export default function GameDetailPage() {
   const updateGame = useUpdateGame(team?.id)
 
   const [tab, setTab] = useState('Lineup')
+  const [editingOrder, setEditingOrder] = useState(false)
 
   if (gameLoading || !game) {
     return (
@@ -44,7 +45,14 @@ export default function GameDetailPage() {
     .filter(Boolean)
 
   function handleConfirmOrder(playerIds) {
-    updateGame.mutate({ id: game.id, batting_order: playerIds })
+    updateGame.mutate(
+      { id: game.id, batting_order: playerIds },
+      { onSuccess: () => setEditingOrder(false) }
+    )
+  }
+
+  function handleAddInning() {
+    updateGame.mutate({ id: game.id, innings: game.innings + 1 })
   }
 
   function formatDate(dateStr) {
@@ -63,7 +71,7 @@ export default function GameDetailPage() {
       </header>
 
       {!hasOrder ? (
-        /* ─── Batting order setup ─── */
+        /* ─── Batting order setup (first time) ─── */
         <div className="page-content">
           <div className="section-header">
             <span className="section-title">Set batting order</span>
@@ -77,6 +85,23 @@ export default function GameDetailPage() {
       ) : (
         /* ─── Game in progress ─── */
         <>
+          {/* Edit batting order slide panel */}
+          {editingOrder && (
+            <>
+              <div className="slide-panel-overlay" onClick={() => setEditingOrder(false)} />
+              <div className="slide-panel">
+                <div className="slide-panel__handle" />
+                <h2 className="slide-panel__title">Edit batting order</h2>
+                <BattingOrderSetup
+                  players={allPlayers}
+                  initialOrder={activePlayers}
+                  onConfirm={handleConfirmOrder}
+                  saving={updateGame.isPending}
+                />
+              </div>
+            </>
+          )}
+
           <div className="tabs">
             {TABS.map(t => (
               <button
@@ -103,6 +128,8 @@ export default function GameDetailPage() {
                   activePlayers={activePlayers}
                   assignments={assignments}
                   pitchLog={pitchLog}
+                  onEditOrder={() => setEditingOrder(true)}
+                  onAddInning={handleAddInning}
                 />
               )}
             </div>

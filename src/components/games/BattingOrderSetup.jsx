@@ -1,8 +1,7 @@
 import { useState } from 'react'
 
-export default function BattingOrderSetup({ players = [], onConfirm, saving }) {
-  // Start with all active players included, in name order
-  const [order, setOrder] = useState(() => [...players])
+export default function BattingOrderSetup({ players = [], initialOrder, onConfirm, saving }) {
+  const [order, setOrder] = useState(() => initialOrder ? [...initialOrder] : [...players])
 
   function move(index, dir) {
     const newOrder = [...order]
@@ -95,7 +94,7 @@ export default function BattingOrderSetup({ players = [], onConfirm, saving }) {
         onClick={() => onConfirm(order.map(p => p.id))}
         disabled={saving || order.length === 0}
       >
-        {saving ? 'Saving…' : 'Lock in batting order →'}
+        {saving ? 'Saving…' : 'Save batting order'}
       </button>
     </div>
   )
