@@ -79,6 +79,32 @@ export function useUpsertAssignment(gameId) {
 }
 
 /**
+ * Remove the last inning: deletes its assignments + pitching entries, decrements game.innings.
+ */
+export function useRemoveInning(gameId, teamId) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (inning) => {
+      await supabase.from('lineup_assignments').delete()
+        .eq('game_id', gameId).eq('inning', inning)
+      await supabase.from('pitching_log').delete()
+        .eq('game_id', gameId).eq('inning', inning)
+      const { data, error } = await supabase
+        .from('games').update({ innings: inning - 1 })
+        .eq('id', gameId).select().single()
+      if (error) throw error
+      return data
+    },
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: KEY(gameId) })
+      qc.invalidateQueries({ queryKey: ['pitching', gameId] })
+      qc.invalidateQueries({ queryKey: ['games', teamId] })
+      qc.setQueryData(['game', gameId], data)
+    },
+  })
+}
+
+/**
  * Accept a full array of suggested assignments for an inning.
  * Optimistic batch update.
  */

@@ -14,6 +14,7 @@ export default function LineupGrid({
   pitchLog = [],
   onEditOrder,
   onAddInning,
+  onRemoveInning,
 }) {
   const [suggestInning, setSuggestInning] = useState(null)
   const [selectedCell, setSelectedCell] = useState(null)
@@ -185,6 +186,11 @@ export default function LineupGrid({
         <button className="btn btn--outline btn--sm" onClick={onAddInning} type="button">
           + Add inning
         </button>
+        {innings > 1 && (
+          <button className="btn btn--outline btn--sm" onClick={onRemoveInning} type="button">
+            − Remove inning
+          </button>
+        )}
       </div>
 
       {/* P+C required alert */}

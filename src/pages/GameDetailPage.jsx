@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { useTeam } from '../lib/context.jsx'
 import { useGame, useUpdateGame } from '../hooks/useGames.js'
 import { usePlayers } from '../hooks/usePlayers.js'
-import { useLineup } from '../hooks/useLineup.js'
+import { useLineup, useRemoveInning } from '../hooks/useLineup.js'
 import { usePitching } from '../hooks/usePitching.js'
 import BattingOrderSetup from '../components/games/BattingOrderSetup.jsx'
 import LineupGrid from '../components/lineup/LineupGrid.jsx'
@@ -20,6 +20,7 @@ export default function GameDetailPage() {
   const { data: assignments = [] } = useLineup(gameId)
   const { data: pitchLog = [] } = usePitching(gameId)
   const updateGame = useUpdateGame(team?.id)
+  const removeInning = useRemoveInning(gameId, team?.id)
 
   const [tab, setTab] = useState('Lineup')
   const [editingOrder, setEditingOrder] = useState(false)
@@ -53,6 +54,12 @@ export default function GameDetailPage() {
 
   function handleAddInning() {
     updateGame.mutate({ id: game.id, innings: game.innings + 1 })
+  }
+
+  function handleRemoveInning() {
+    if (game.innings <= 1) return
+    if (!confirm(`Remove inning ${game.innings}? Any assignments for that inning will be deleted.`)) return
+    removeInning.mutate(game.innings)
   }
 
   function formatDate(dateStr) {
@@ -130,6 +137,7 @@ export default function GameDetailPage() {
                   pitchLog={pitchLog}
                   onEditOrder={() => setEditingOrder(true)}
                   onAddInning={handleAddInning}
+                  onRemoveInning={handleRemoveInning}
                 />
               )}
             </div>
