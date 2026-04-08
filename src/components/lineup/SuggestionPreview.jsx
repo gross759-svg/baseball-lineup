@@ -63,11 +63,12 @@ export default function SuggestionPreview({
       )}
 
       <div className="suggest-actions">
-        <button className="btn btn--secondary btn--full btn--sm" onClick={onClose} type="button">
+        <button className="btn btn--secondary btn--sm" style={{ flex: 1 }} onClick={onClose} type="button">
           Discard
         </button>
         <button
-          className="btn btn--primary btn--full btn--sm"
+          className="btn btn--primary btn--sm"
+          style={{ flex: 1 }}
           onClick={() => onAccept(preview)}
           disabled={accepting}
           type="button"

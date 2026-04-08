@@ -60,10 +60,10 @@ export default function GameForm({ onSave, onCancel, saving }) {
       </div>
 
       <div style={{ display: 'flex', gap: 8 }}>
-        <button type="button" className="btn btn--secondary btn--full" onClick={onCancel}>
+        <button type="button" className="btn btn--secondary" style={{ flex: 1 }} onClick={onCancel}>
           Cancel
         </button>
-        <button type="submit" className="btn btn--primary btn--full" disabled={saving}>
+        <button type="submit" className="btn btn--primary" style={{ flex: 1 }} disabled={saving}>
           {saving ? 'Creating…' : 'Create game'}
         </button>
       </div>
