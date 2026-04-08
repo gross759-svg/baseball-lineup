@@ -171,7 +171,7 @@ export default function LineupGrid({
           {benchWarnings.size > 0 && (
             <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
               <span style={{ width: 12, height: 12, background: 'var(--red-100)', border: '1px solid var(--red-600)', borderRadius: 2, display: 'inline-block' }} />
-              2+ consecutive bench
+              2+ innings bench
             </span>
           )}
         </div>

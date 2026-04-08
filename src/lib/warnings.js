@@ -3,8 +3,7 @@ export const OUTFIELD_POSITIONS = ['OF']
 export const ALL_POSITIONS = [...INFIELD_POSITIONS, ...OUTFIELD_POSITIONS]
 
 /**
- * Returns true if the player has played at least one inning but zero infield innings
- * so far in the game (amber warning).
+ * Returns true if the player has played at least one inning but zero infield innings.
  */
 export function playerNeedsInfieldWarning(playerId, assignments, currentMaxInning) {
   const played = assignments.filter(
@@ -15,39 +14,27 @@ export function playerNeedsInfieldWarning(playerId, assignments, currentMaxInnin
 }
 
 /**
- * Returns a Set of inning numbers where the player has been benched
- * as part of a streak of 2 or more consecutive bench innings (red warning).
+ * Returns the set of innings where this player was on the bench, if their total
+ * bench count meets or exceeds `threshold`. Returns empty set otherwise.
  */
-export function getConsecutiveBenchInnings(playerId, assignments, totalInnings) {
-  // Determine which innings the player actually played
+function getBenchWarnInnings(playerId, assignments, maxInning, threshold) {
   const playedInnings = new Set(
     assignments.filter(a => a.player_id === playerId).map(a => a.inning)
   )
-
-  // Find consecutive bench streaks of length >= 2
-  const warnInnings = new Set()
-  let streak = []
-
-  for (let i = 1; i <= totalInnings; i++) {
-    if (!playedInnings.has(i)) {
-      streak.push(i)
-    } else {
-      if (streak.length >= 2) {
-        streak.forEach(n => warnInnings.add(n))
-      }
-      streak = []
-    }
+  const benchInnings = []
+  for (let i = 1; i <= maxInning; i++) {
+    if (!playedInnings.has(i)) benchInnings.push(i)
   }
-  if (streak.length >= 2) {
-    streak.forEach(n => warnInnings.add(n))
-  }
-
-  return warnInnings
+  return benchInnings.length >= threshold ? new Set(benchInnings) : new Set()
 }
 
 /**
- * Compute a map of { playerId -> Set<inning> } for bench warnings,
- * and a Set<playerId> for infield warnings.
+ * Compute bench and infield warnings.
+ *
+ * Bench warning threshold:
+ *  - Default: warn if a player has sat 2+ innings total.
+ *  - Once every active player has sat at least once, the threshold rises to 3
+ *    (sitting twice is acceptable when it's distributed evenly).
  */
 export function computeWarnings(activePlayers, assignments, totalInnings) {
   const maxPlayedInning = assignments.length
@@ -55,13 +42,26 @@ export function computeWarnings(activePlayers, assignments, totalInnings) {
     : 0
 
   const infieldWarnings = new Set()
-  const benchWarnings = new Map() // playerId -> Set<inning>
+  const benchWarnings = new Map()
+
+  // Determine threshold: once everyone has sat once, raise it to 3
+  const sittingCounts = activePlayers.map(p => {
+    const played = new Set(assignments.filter(a => a.player_id === p.id).map(a => a.inning))
+    let count = 0
+    for (let i = 1; i <= maxPlayedInning; i++) {
+      if (!played.has(i)) count++
+    }
+    return count
+  })
+
+  const everyoneHasSat = sittingCounts.length > 0 && sittingCounts.every(c => c >= 1)
+  const threshold = everyoneHasSat ? 3 : 2
 
   for (const player of activePlayers) {
     if (playerNeedsInfieldWarning(player.id, assignments, maxPlayedInning)) {
       infieldWarnings.add(player.id)
     }
-    const benchSet = getConsecutiveBenchInnings(player.id, assignments, totalInnings)
+    const benchSet = getBenchWarnInnings(player.id, assignments, maxPlayedInning, threshold)
     if (benchSet.size > 0) {
       benchWarnings.set(player.id, benchSet)
     }
