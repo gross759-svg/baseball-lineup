@@ -1,21 +1,18 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useUpsertPitch, pitchTotals } from '../../hooks/usePitching.js'
+import { useUpsertAssignment } from '../../hooks/useLineup.js'
 
-/**
- * Live per-inning pitch count entry.
- * Lists only players who pitched in at least one inning (assigned to P).
- */
 export default function PitchCountEntry({ game, activePlayers, assignments, pitchLog }) {
   const upsertPitch = useUpsertPitch(game.id)
+  const upsertAssignment = useUpsertAssignment(game.id)
   const totals = pitchTotals(pitchLog)
+  const [showSub, setShowSub] = useState(false)
 
-  // Players who have pitched in any inning
   const pitcherIds = new Set(
     assignments.filter(a => a.position === 'P').map(a => a.player_id)
   )
   const pitchers = activePlayers.filter(p => pitcherIds.has(p.id))
 
-  // Per-inning pitch counts keyed by `${playerId}-${inning}`
   const perInning = {}
   for (const row of pitchLog) {
     if (row.inning > 0) perInning[`${row.player_id}-${row.inning}`] = row.pitch_count
@@ -23,23 +20,28 @@ export default function PitchCountEntry({ game, activePlayers, assignments, pitc
 
   const inningNums = Array.from({ length: game.innings }, (_, i) => i + 1)
 
+  function handleSub(inning, playerId) {
+    upsertAssignment.mutate({ playerId, inning, position: 'P' })
+  }
+
   if (pitchers.length === 0) {
     return (
       <div className="empty-state">
         <div className="empty-state__icon">🏟️</div>
         <div className="empty-state__title">No pitchers assigned yet</div>
-        <div className="empty-state__text">
-          Assign players to the P position in the Lineup tab first.
-        </div>
+        <div className="empty-state__text">Assign players to the P position in the Lineup tab first.</div>
       </div>
     )
   }
 
   return (
     <div>
-      <p className="text-sm text-muted mb-16">
-        Tap a pitcher's inning to log pitch count.
-      </p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <p className="text-sm text-muted" style={{ margin: 0 }}>Tap an inning box to log pitches.</p>
+        <button className="btn btn--outline btn--sm" onClick={() => setShowSub(true)} type="button">
+          Mid-inning sub
+        </button>
+      </div>
 
       {pitchers.map(player => (
         <PitcherRow
@@ -54,6 +56,16 @@ export default function PitchCountEntry({ game, activePlayers, assignments, pitc
           }
         />
       ))}
+
+      {showSub && (
+        <SubPitcherPanel
+          inningNums={inningNums}
+          assignments={assignments}
+          activePlayers={activePlayers}
+          onSub={handleSub}
+          onClose={() => setShowSub(false)}
+        />
+      )}
     </div>
   )
 }
@@ -61,7 +73,6 @@ export default function PitchCountEntry({ game, activePlayers, assignments, pitc
 function PitcherRow({ player, inningNums, assignments, perInning, total, onSave }) {
   const [editInning, setEditInning] = useState(null)
 
-  // Innings where this player pitched
   const pitchedInnings = new Set(
     assignments.filter(a => a.player_id === player.id && a.position === 'P').map(a => a.inning)
   )
@@ -126,6 +137,17 @@ function PitcherRow({ player, inningNums, assignments, perInning, total, onSave 
 
 function InningPitchEditor({ inning, initial, onSave, onCancel }) {
   const [val, setVal] = useState(initial)
+  const inputRef = useRef(null)
+
+  useEffect(() => {
+    inputRef.current?.focus()
+    inputRef.current?.select()
+  }, [])
+
+  function handleChange(e) {
+    const n = parseInt(e.target.value, 10)
+    setVal(isNaN(n) || n < 0 ? 0 : n)
+  }
 
   return (
     <div style={{
@@ -137,22 +159,38 @@ function InningPitchEditor({ inning, initial, onSave, onCancel }) {
       flexDirection: 'column',
       alignItems: 'center',
       gap: 6,
-      minWidth: 80,
+      minWidth: 90,
     }}>
       <span style={{ fontSize: '0.6875rem', color: 'var(--slate)' }}>Inn {inning}</span>
-      <div className="stepper" style={{ padding: 0, gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
         <button
           type="button"
           className="stepper__btn"
           onClick={() => setVal(v => Math.max(0, v - 1))}
-          style={{ width: 32, height: 32, fontSize: '1rem' }}
+          style={{ width: 28, height: 28, fontSize: '1rem' }}
         >−</button>
-        <span className="stepper__val" style={{ fontSize: '1.25rem', minWidth: 32 }}>{val}</span>
+        <input
+          ref={inputRef}
+          type="number"
+          min="0"
+          value={val}
+          onChange={handleChange}
+          style={{
+            width: 48,
+            textAlign: 'center',
+            fontSize: '1.25rem',
+            fontWeight: 700,
+            border: 'none',
+            outline: 'none',
+            color: 'var(--red-600)',
+            background: 'transparent',
+          }}
+        />
         <button
           type="button"
           className="stepper__btn"
           onClick={() => setVal(v => v + 1)}
-          style={{ width: 32, height: 32, fontSize: '1rem' }}
+          style={{ width: 28, height: 28, fontSize: '1rem' }}
         >+</button>
       </div>
       <div style={{ display: 'flex', gap: 4, width: '100%' }}>
@@ -160,5 +198,94 @@ function InningPitchEditor({ inning, initial, onSave, onCancel }) {
         <button className="btn btn--primary btn--sm" style={{ flex: 1, height: 30 }} onClick={() => onSave(val)}>✓</button>
       </div>
     </div>
+  )
+}
+
+function SubPitcherPanel({ inningNums, assignments, activePlayers, onSub, onClose }) {
+  const [inning, setInning] = useState(inningNums[inningNums.length - 1])
+  const [playerId, setPlayerId] = useState('')
+
+  const currentPitcherIds = new Set(
+    assignments.filter(a => a.position === 'P' && a.inning === inning).map(a => a.player_id)
+  )
+
+  const availableSubs = activePlayers.filter(p => {
+    if (currentPitcherIds.has(p.id)) return false
+    return p.preferred_position === 'P' || (p.secondary_positions || []).includes('P')
+  })
+
+  // Reset selection when inning changes
+  useEffect(() => { setPlayerId('') }, [inning])
+
+  function handleSubmit() {
+    if (!playerId) return
+    onSub(inning, playerId)
+    onClose()
+  }
+
+  return (
+    <>
+      <div className="slide-panel-overlay" onClick={onClose} />
+      <div className="slide-panel">
+        <div className="slide-panel__handle" />
+        <h2 className="slide-panel__title">Mid-inning sub</h2>
+
+        <div className="form-group">
+          <label className="form-label">Inning</label>
+          <select
+            className="form-input"
+            value={inning}
+            onChange={e => setInning(Number(e.target.value))}
+          >
+            {inningNums.map(n => (
+              <option key={n} value={n}>Inning {n}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="form-group">
+          <label className="form-label">Sub in</label>
+          {availableSubs.length === 0 ? (
+            <div className="alert alert--warn">No available pitchers for Inning {inning}.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {availableSubs.map(p => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setPlayerId(p.id)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '10px 12px',
+                    border: `2px solid ${playerId === p.id ? 'var(--brand)' : 'var(--gray-200)'}`,
+                    borderRadius: 'var(--radius)',
+                    background: playerId === p.id ? 'var(--blue-50, #eff6ff)' : 'white',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                >
+                  <div className="jersey-badge" style={{ flexShrink: 0 }}>{p.jersey_number ?? '—'}</div>
+                  <span style={{ fontWeight: 500 }}>{p.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+          <button className="btn btn--secondary" style={{ flex: 1 }} onClick={onClose}>Cancel</button>
+          <button
+            className="btn btn--primary"
+            style={{ flex: 1 }}
+            onClick={handleSubmit}
+            disabled={!playerId}
+          >
+            Sub in
+          </button>
+        </div>
+      </div>
+    </>
   )
 }
